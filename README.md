@@ -17,6 +17,8 @@ make all
 ./cub3D maps/long.cub
 ```
 
+## Maps
+The program is design to parse a specific configuration in terms of how maps should be displayed
 
 ## Ray Caster Algorithm
 
