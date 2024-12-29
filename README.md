@@ -1,4 +1,4 @@
-# CUBE3D
+# Cube3D
 Inspired by Wolfenstein3D, this project goal was to render a "3D" dynamic view of a maze by casting rays. Wolfenstein3D, used "rays" to create a first-person shooter experience in a 2D environment, simulating a 3D view by projecting rays from the player's perspective to determine the visible walls and objects in the game. The "ray caster" gives the illusion of depth and perspective without using actual 3D models, allowing for fast and efficient rendering on early computer hardware.
 
 ![Untitledvideo-MadewithClipchamp1-ezgif com-video-to-gif-converter (1)](https://github.com/user-attachments/assets/3d0c190c-501a-4ca4-b63b-d7ba127c09ff)
@@ -66,10 +66,59 @@ $sy = \sqrt{1^2 + \frac{dx}{dy}^2}$
 
 Now with the step size of each axis, we can apply the algorithm. The algorithm states that you should move on the x- or y-axis depending on which ever step size is smaller. In the image bellow, we can see that the step size of x (**SX**) is smaller than the step size of (**SY**), therefore we will move on the x-axis afterwards.
 
-![image](https://github.com/user-attachments/assets/038e363f-226b-4056-a87d-aa5a83acc8c2)
+![image](https://github.com/user-attachments/assets/89dfa860-22cb-4936-8961-03d7cff3f259)
+
 
 *What does this mean in terms of finding the end-point/obstacle that the ray hits?*
+
 Well, the final distance of the ray is the sum of the step-size on x or y as you move through the grid. Let's take a look at the code:
+
+```c
+static void	ray_caster_step(t_data *data, t_raycaster *ray)
+{
+	if (ray->length[X] < ray->length[Y])
+	{
+		ray->r_pos[X] += ray->step[X];
+		ray->final_distance = ray->length[X];
+		ray->length[X] += ray->step_size[X];
+		ray->wall_direction = EW;
+	}
+	else
+	{
+		ray->r_pos[Y] += ray->step[Y];
+		ray->final_distance = ray->length[Y];
+		ray->length[Y] += ray->step_size[Y];
+		ray->wall_direction = NS;
+	}
+	if (data->map.map[ray->r_pos[Y]][ray->r_pos[X]] == '1')
+	{
+		ray->wall_found = true;
+	}
+}
+```
+
+The first if- and else-statement determines whether you need to move on the x- or y-axis accordingly. You can think of it as where does the ray hit the obstacle, on the x-axis first or on the y-axis. Let's go back to this image below, the color blue represents a wall.
+
+![image](https://github.com/user-attachments/assets/e368dfad-cc31-43e1-980a-ec5b7cdff9ff)
+
+
+Although the step size in the x-direction is shorter, causing us to begin moving right along the x-axis, there comes a point where the cumulative length of x (which adds the step size, **SX**, with each iteration) exceeds the length traveled along the y-axis. At this point, we switch from always checking the x-axis intersections to now check the y-intersections. This is where the ray hits an obstacle, and the final distance of the ray is determined by the length calculation on the y-step size, not the x-step size. This is the gist of the *DDA Algorithm*
+
+In the code above:
+1. **ray->pos[] += ray->step[]**: Step is either -1 or 1, this was calculated beforehand to determine in which direction the ray is moving; it is pretty straightforward. The ray->pos[] is later used to dereference the map and check if at that given position there is a wall.
+2. **ray->final_distance = ray->length[]**: The final distance of the ray is always redefined until we hit the obstacle.
+3. **ray->length[] += ray->step_size[]**: This is what will define the final distance, and with each iteration, we add the step_size that we calculated using **SX** adn **SY**
+
+After the if-else statement, we get to check whether at the current **ray->pos[x]** and **ray->pos[y]** there is an obstacle/wall. Given the configuration of the map, '1' represents a wall and '0' a walkable space, therefore if at that given ray position on X and Y in the map equals '1', we turn the boolean ray->wall_found to true, which would stop the iteration.
+
+To calculate the *line_height* of a wall, we simply scale the final_distance in terms of the heigth of the screen denoted by screen_y:
+
+```c
+ray.line_height = (float)milx->screen_y / (float)ray.final_distance;
+```
+
+Now this is where the magic happens, drawing the view of the maze:
+
 
 
 
