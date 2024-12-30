@@ -97,6 +97,8 @@ static void	ray_caster_step(t_data *data, t_raycaster *ray)
 }
 ```
 
+
+
 The first if- and else-statement determines whether you need to move on the x- or y-axis accordingly. You can think of it as where does the ray hit the obstacle, on the x-axis first or on the y-axis. Let's go back to this image below, the color blue represents a wall.
 
 ![image](https://github.com/user-attachments/assets/e368dfad-cc31-43e1-980a-ec5b7cdff9ff)
@@ -117,14 +119,130 @@ To calculate the *line_height* of a wall, we simply scale the final_distance in 
 ray.line_height = (float)milx->screen_y / (float)ray.final_distance;
 ```
 
-Now this is where the magic happens, drawing the view of the maze:
+### Useful Knowledge
+#### Field of View (FOV)
+The **Field of View** represent the visible area in front of the player, measured in degrees.
+
+*Why is this important?*
+- The FOV determines how wide the player's perspective is. A large FOV shows more of the environment but the objects can appear distored, while a smaller FOV narrows the range, giving a more zoomed-in feeling.
+- It defines the spread of the rays that need to be cast.
+
+#### Camera Plane
+The **camera plane** help define the bounds of the FOV. It is a 2D line *perpendicular* to the player's direction.
+
+*Why is the camera plane needed?*
+
+- Determines how rays are spread across the FOV, from the leftmost edge of the screen to the righmost edge. Without it, all rays will follow the player's exact direction.
+
+*What Does "Perpendicular* Mean?
+
+*Perpendicular* means that two lines meet at a perfect 90-degree angle, like the corners of a square. If one line goes straight up and down (vertical), the perpendicular line will go left to right (horizontal).
+
+To translate it to Cube3D, if the player is looking East/West, there needs to be an imaginary line that meets the "player's view" going North/South and vice versa.
+
+*How is the Camera Plane Calculated?*
+
+Let's assume the player's direction vector is $[dx, dy]$:
+
+For two 2D vectors, being perpendicular means:
+- Their **dot product** is zero:
+  
+$[dx, dy] * [-dy, dx] = dx * (-dy) + dy * dx = (-dx * dy) + (dy * dx) = 0$
+
+Therefore the perpendicualr vector of $[dx, dy]$, has to be $[-dy, dx]$. This is because when you multiply these two vectors, they should give you zero. The only way to do this is by switching the x- and y-coordinate, and negating the y-coordinte.
+
+```c
+static void	ray_caster_init(t_raycaster	*ray, t_player *player)
+{
+	ft_bzero(ray, sizeof(t_raycaster)); //zero-out the raycaster struct
+	player->plane[X] = -player->direct[Y]; //define the camera plane on x
+	player->plane[Y] = player->direct[X]; //define the camera plane on y
+	ray->r_start[X] = player->pos[X]; //the ray always starts where the player is
+	ray->r_start[Y] = player->pos[Y];
+	ray->plane_magnitude = tan((float)(FOV / 2) *RAD); //the length of the camera plane, times RAD because the tan() only accepts radians
+}
+```
+*What is The Plane Magnitude & What is It for?*
+
+The **camera plane** depends on the FOV. The wider the FOV, the larger the camera plane needs to be. It is derived from the tangent of half of the Field of View, which is the angle the player can see in their vision.
+
+$Plane Magnitude = tan(\frac{FOV}{2})$
+
+*Why Use Tangent?*
+
+It connects the angle of the FOV to the width of the camera plane. Tangent helps calculate how far the left and right edges of the camera plane are based on the FOV angle.
+
+![image](https://github.com/user-attachments/assets/d29c20e4-757c-45f3-bdae-3516d710b2aa)
+
+If you draw a straight line through the player's view, you wull have two right-angle triangles. The *adjacent side* is the distance straight forward. The *opposite side* is half the width of the camera plane at a given distance. Therefore:
+
+$tan(\frac{FOV}{2}) = \frac{Half Width of Camera Plane}{Distance Forward (1 unit)}
+
+After rearranging:
+$Half Width of Camera Plane = tan(\frac{FOV}{2})$
+
+This ensures that the camera plane has a specific range related to the FOV!
+The reason it is half the width of the camera plane has to do with how we are scaling the plane. The Plane scale ranges from -1 (left most edge), 0 (player's direction) and 1 (right most edge). 
+
+The plane scale is done in this way, so that it can be used to determine the ray's direction, and given that West and North are -1 x and -1 y correspondingly, and South and East are 1 x and 1 y. We need to have a plane scale that also ranges from -1 to 1.
+
+To calculate the plane scale:
+
+```c
+ray->plane_scale = (float)2 * ((float)x / (float)data->milx.screen_x) - (float)1;
+```
+To calculate the rays directions:
+
+```c
+ray->direction[X] = player->direct[X] + (player->plane[X] * ray->plane_magnitude) * ray->plane_scale;
+ray->direction[Y] = player->direct[Y] + (player->plane[Y] * ray->plane_magnitude) * ray->plane_scale;
+```
+#### Step Direction & Inital Ray Length
+The `step_direction()` function is critical for determining how the ray advances through the grid in the DDA algorithm. Depending on the direction of the ray, the ray steps in the positive or negative direction, because the ray travels through a grid, the goal is to determine which grid cell the ray enters next.
+
+*What is the initial Length?*
+
+One would think that the initial length (length_x and length_y are two separate lengths, which either one of them at the end becomes the final length of the ray) is the step size **SX** and **SY**. However, we do not always start from an 'integer space', meaning that the ray (player) does not always start at 1, 0 or -1
 
 
+### Drawing The View
 
+The sky and floor have the same measurement, because it is the space that is left from the space that the length of the wall/obstacle is going to take. To calculate it, you substract the height of the screen minus the length of the line height of the wall and then divide this by two.
 
+```c
+void	draw_background(t_data *data, t_minilx *milx, t_raycaster ray)
+{
+	int	height;
+	int	i;
 
+	height = (milx->screen_y - ray.line_height) / 2;
+	i = 0;
+	while (i <= height)
+	{
+		img_mlx_pixel_put(&milx->big, ray.x, i, data->map.c_col);
+		img_mlx_pixel_put(&milx->big, ray.x, milx->screen_y - i, data->map.f_col);
+		i++;
+	}
+}
+```
 
-## Textures
+The `img_mlx_pixel_put()`, takes as first parameter the image to draw to, then the x coordinate which is pointed by the x-coordinate of the ray, then the y coordinate and the last parameter is the color. The y-coordinate for the sky is obviously going to start from 0 (i) and move downwards (i++). For the floor it starts from the bottome and moves upwards.
+
+Finally to draw the wall, you take half the screen minus half the height of the wall as the initial y-coordinate to start drawing. Loop the height of the wall and always check that the pixel you want to access is within the boundaries of your computer screen.
+
+```c
+void	img_mlx_pixel_put(t_mlx_img *img, int x, int y, int color)
+{
+	char	*dst;
+
+	if (x >= 0 && y >= 0 && x < img->max_x && y < img->max_y)
+	{
+		dst = img->addr + (y * img->line_length + x * 4);
+		*(unsigned int *)dst = color;
+	}
+}
+```
+
 
 ## Useful Resources
 For those who prefer reading:
