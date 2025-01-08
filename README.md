@@ -5,7 +5,7 @@ Inspired by Wolfenstein3D, this project goal was to render a "3D" dynamic view o
 
 ## Contributors
 - [Andres Madrid Ucha](https://github.com/andmadri): Ray-Caster Algorithm
-- [Christian Rasche](https:://github.com/Chr-ss): Parsing, Texture-handling 
+- [Christian Rasche](https://github.com/Chr-ss): Parsing, Texture-handling 
 
 ## Build Instructions
 First git clone it in your root directory with the name CUBE3D
